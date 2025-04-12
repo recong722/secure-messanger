@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>실시간 채팅</title>
+    <style>
+        #welcome {
+          list-style-type: none; /* ● 제거 */
+          padding-left: 0;        /* 왼쪽 여백 제거 */
+        }
+        #messages {
+          list-style-type: none; /* ● 제거 */
+          padding-left: 0;        /* 왼쪽 여백 제거 */
+        }
+      </style>
+</head>
+<body>
+    <h1>채팅방</h1>
+    <ul id="welcome"></ul>
+    
+    <ul id="messages"></ul>
+    <input id="message" autocomplete="off"><button onclick="sendMessage()">전송</button>
+   
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <script>
+        const socket = io();  // 서버와 연결
+        function addNewUser(){
+            const li = document.createElement('li');
+            li.textContent = `누군가가 입장하셨습니다.`;
+            document.getElementById('welcome').appendChild(li);
+        }
+        addNewUser(); 
+        const messages = document.getElementById('messages');
+       
+        // 서버에서 메시지를 받을 때 실행되는 함수
+        socket.on('message', function(msg) {
+            const li = document.createElement('li');
+            li.textContent = msg;
+            messages.appendChild(li);
+        });
+       
+        // 메시지 전송 함수
+        function sendMessage() {
+            const input = document.getElementById('message');
+            const fullMessage = `익명: ${input.value}`;  // 익명 붙이기
+            socket.send(fullMessage);  // 서버로 메시지 전송
+            input.value = '';         // 입력창 초기화
+        }
+    </script>
+</body>
+</html>
+ 
+ 
