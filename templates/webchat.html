@@ -16,9 +16,16 @@
 <body>
     <h1>채팅방</h1>
     <ul id="welcome"></ul>
+    <div id="chat">
+    {% for chat in chats %}
+        <p>{{ chat.chat }}</p>
+    {% endfor %}
     
     <ul id="messages"></ul>
-    <input id="message" autocomplete="off"><button onclick="sendMessage()">전송</button>
+    <input id="message" onkeypress="enterPress(event)" autocomplete="off">
+    <button onclick="sendMessage()">전송</button>
+    </div>
+    
    
     <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
     <script>
@@ -44,6 +51,12 @@
             const fullMessage = `익명: ${input.value}`;  // 익명 붙이기
             socket.send(fullMessage);  // 서버로 메시지 전송
             input.value = '';         // 입력창 초기화
+        }
+        // 엔터 누르면 메세지 전송
+        function enterPress(event){
+            if (event.key === "Enter"){
+                sendMessage();
+            }
         }
     </script>
 </body>
