@@ -15,23 +15,24 @@ database=create_engine(app.config['DB_URL'],pool_pre_ping=True ,pool_recycle=360
 
 
 def encrypt_message(message, public_key):
-    """메시지를 공개키로 암호화"""
+    #메시지를 공개키로 암호화
     cipher = PKCS1_OAEP.new(public_key)
     return cipher.encrypt(message.encode())
 
 def decrypt_message(encrypted_message, private_key):
-    """암호화된 메시지를 개인키로 복호화"""
+    #암호화된 메시지를 개인키로 복호화
     cipher = PKCS1_OAEP.new(private_key)
     return cipher.decrypt(encrypted_message).decode()
 def make_key():
-    """RSA 공개키 및 개인키 생성"""
+    #RSA 공개키 및 개인키 생성
     pr_key = RSA.generate(1024)
     pu_key = pr_key.public_key()
     return pr_key, pu_key
 
 def get_login(user_id):
     query = text("SELECT id, passwd FROM PRIVATE WHERE id = :id") 
-    #:id는 플레이스 홀더역할로 값을 넣을 자리를 표시하는 역할을 한단다 이후.execute({"id":user_id})에서 user_id 	값을 전달하면 실행시,:id가 해당값으로 대체된다고함
+    #:id는 플레이스 홀더역할로 값을 넣을 자리를 표시하는 역할을 한다. 
+    # 이후.execute({"id":user_id})에서 user_id 	값을 전달하면 실행시,:id가 해당값으로 대체된다고함
 
     with database.connect() as conn:
         result = conn.execute(query, {"id": user_id}).fetchone()
@@ -62,7 +63,7 @@ def sign_in():
     userinfo=get_login(user_id)
     if userinfo:
         if userinfo["passwd"]==password:
-            return "쿠키 설정"#변경할것
+            return "쿠키 설정"#사용자 인증유지관련
         else:
             return "아이디 혹은 비밀번호가 다릅니다."
 
@@ -98,28 +99,9 @@ def sign_up():
         except Exception as e:
             print("에러 발생:", e)
             return "회원가입 실패"
+        #try문에서만 데이터베이스 연결 try,except문이 끝나면 연결이 자동종료되서 관리하기 쉬움
     return render_template('register.html')
 
-@app.route('/openchat')        
-def chat():
-    query=text("""SELECT chat FROM ACHAT ORDER BY num ASC""")
-    with database.connect() as conn:
-        result=conn.execute(query).fetchall()
-        chats=[{"chat":row[0]} for row in result]
-    return render_template('webchat.html',chats=chats)  # HTML 파일 렌더링
- 
-@socketio.on('message')
-def handle_message(msg):
-      
-    user_ip=request.remote_addr
-    print(f"[{user_ip}] 메세지 수신:{msg}")
-    query=text("""INSERT INTO ACHAT(chat) VALUES(:chat)""")
-    with database.connect() as conn:
-        conn.execute(query,{"chat":msg})
-        conn.commit()
-    send(msg, broadcast=True)# 모든 클라이언트에게 메시지
-    
-    
 
 
 
