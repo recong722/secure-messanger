@@ -15,25 +15,29 @@ database=create_engine(app.config['DB_URL'],pool_pre_ping=True ,pool_recycle=360
 
 
 def encrypt_message(message, public_key):
-    """메시지를 공개키로 암호화"""
+    #메시지를 공개키로 암호화
     cipher = PKCS1_OAEP.new(public_key)
     return cipher.encrypt(message.encode())
 
 def decrypt_message(encrypted_message, private_key):
-    """암호화된 메시지를 개인키로 복호화"""
+    #암호화된 메시지를 개인키로 복호화
     cipher = PKCS1_OAEP.new(private_key)
     return cipher.decrypt(encrypted_message).decode()
 def make_key():
-    """RSA 공개키 및 개인키 생성"""
+    #RSA 공개키 및 개인키 생성
     pr_key = RSA.generate(1024)
     pu_key = pr_key.public_key()
     return pr_key, pu_key
 
 def get_login(user_id):
-    query = text("SELECT id, passwd FROM PRIVATE WHERE id = :id") 
-    #:id는 플레이스 홀더역할로 값을 넣을 자리를 표시하는 역할을 한단다 이후.execute({"id":user_id})에서 user_id 	값을 전달하면 실행시,:id가 해당값으로 대체된다고함
+    
+    #:id는 플레이스 홀더역할로 값을 넣을 자리를 표시하는 역할을 한단다 
+    # 이후.execute({"id":user_id})에서 user_id 	값을 전달하면 실행시,:id가 해당값으로 대체된다고함
 
     with database.connect() as conn:
+        query = text("SELECT id,passwd FROM PRIVATE WHERE id = :id") 
+        #:id는 플레이스 홀더역할로 값을 넣을 자리를 표시하는 역할을 한단다 
+        # 이후.execute({"id":user_id})에서 user_id 	값을 전달하면 실행시,:id가 해당값으로 대체된다고함
         result = conn.execute(query, {"id": user_id}).fetchone()
 	#user_id="u001"로 입력했다 치면 실행시 :id가 "u001"로 대체된다
 	#SQLAlchemy가 '--같은것도 그냥 문자열로만 취급하기때문에 인젝션이 막힌다함
@@ -55,19 +59,21 @@ def index():
     return render_template('index.html')
 
 
-@app.route('/login',methods=['POST'])
+@app.route('/login',methods=['GET','POST'])
 def sign_in():
-    user_id=request.form.get("user_id")
-    password=request.form.get("password")
-    userinfo=get_login(user_id)
-    if userinfo:
-        if userinfo["passwd"]==password:
-            return "쿠키 설정"#변경할것
+    if request.method =='POST':
+        user_id=request.form.get("user_id")
+        password=request.form.get("password")
+        userinfo=get_login(user_id)
+        if userinfo:
+            if userinfo["passwd"]==password:
+                return "쿠키 설정"#변경할것
+            else:
+                return "아이디 혹은 비밀번호가 다릅니다."
+
         else:
             return "아이디 혹은 비밀번호가 다릅니다."
-
-    else:
-        return "아이디 혹은 비밀번호가 다릅니다."
+    return render_template('login.html')
 
 @app.route('/register',methods=['GET','POST'])
 def sign_up():
