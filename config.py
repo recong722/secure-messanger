@@ -1,5 +1,5 @@
 dbs = {
-    'host': '데이터베이스 아이피',
+    'host': '데이터베이스 IP',
         'user': 'recong',
         'password': 'recong',
         'database': 'project',
