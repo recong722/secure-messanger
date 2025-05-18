@@ -3,15 +3,15 @@ import threading
 import pymysql
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import PKCS1_OAEP
-from flask import Flask,request,render_template
+from flask import Flask,request,render_template,redirect,session,url_for
 from sqlalchemy import create_engine,text
-from flask_socketio import SocketIO, send
+from flask_socketio import SocketIO, send, emit
 app = Flask(__name__)
 app.config.from_pyfile('config.py')
 socketio = SocketIO(app)
 
 database=create_engine(app.config['DB_URL'],pool_pre_ping=True ,pool_recycle=3600,echo=True)
-
+connected_users = {}
 
 
 def encrypt_message(message, public_key):
@@ -61,13 +61,16 @@ def index():
 
 @app.route('/login',methods=['GET','POST'])
 def sign_in():
+    if 'username' in session:
+     return redirect('/')
     if request.method =='POST':
         user_id=request.form.get("user_id")
         password=request.form.get("password")
         userinfo=get_login(user_id)
         if userinfo:
             if userinfo["passwd"]==password:
-                return "쿠키 설정"#변경할것
+                session["username"]=user_id #변경할것
+                return redirect('/')
             else:
                 return "아이디 혹은 비밀번호가 다릅니다."
 
@@ -130,14 +133,39 @@ def handle_message(msg):
 
 
 
-#@app.route('/chat',method=['POST'])
+@app.route('/chat',methods=['POST'])
+def chat():
+    user1=session.get('user_id')
+    user2=request.form.get('user_id')
+    if not user1 or not user2:
+        return "존재하지 않는 사용자이거나 접속 중이 아닙니다.", 400
 
+    # 방 이름을 알파벳순으로 고정해 충돌 방지
+    room_users = sorted([user1, user2])
+    room_name = f"{room_users[0]}_{room_users[1]}"
 
+    # 해당 1:1 채팅방으로 리디렉션
+    return redirect(url_for('private_chat', room_name=room_name))
 
+@app.route('/chat/<room_name>')
+def private_chat(room_name):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
 
+    return render_template('private_chat.html', room=room_name, username=session['username'])
+@socketio.on('message')
+def handle_message(msg):
+      
 
+    query=text("""INSERT INTO ACHAT(chat) VALUES(:chat)""")
+    with database.connect() as conn:
+        conn.execute(query,{"chat":msg})
+        conn.commit()
+    emit
+    
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)
+
 
 #if __name__ == '__main__':
 #    app.run(debug=True)
