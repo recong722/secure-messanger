@@ -5,14 +5,14 @@ from Crypto.PublicKey import RSA
 from Crypto.Cipher import PKCS1_OAEP
 from flask import Flask,request,render_template,redirect,session,url_for
 from sqlalchemy import create_engine,text
-from flask_socketio import SocketIO, send, emit
+from flask_socketio import SocketIO, send, join_room,leave_room
 app = Flask(__name__)
 app.config.from_pyfile('config.py')
 socketio = SocketIO(app)
 
 database=create_engine(app.config['DB_URL'],pool_pre_ping=True ,pool_recycle=3600,echo=True)
 connected_users = {}
-
+chat_room={}
 
 def encrypt_message(message, public_key):
     #메시지를 공개키로 암호화
@@ -117,11 +117,11 @@ def chat():
         chats=[{"chat":row[0]} for row in result]
     return render_template('webchat.html',chats=chats)  # HTML 파일 렌더링
  
-@socketio.on('message')
+@socketio.on('open_message')
 def handle_message(msg):
       
-    user_ip=request.remote_addr
-    print(f"[{user_ip}] 메세지 수신:{msg}")
+    #user_ip=request.remote_addr
+    #print(f"[{user_ip}] 메세지 수신:{msg}")
     query=text("""INSERT INTO ACHAT(chat) VALUES(:chat)""")
     with database.connect() as conn:
         conn.execute(query,{"chat":msg})
@@ -135,33 +135,68 @@ def handle_message(msg):
 
 @app.route('/chat',methods=['POST'])
 def chat():
-    user1=session.get('user_id')
+    user1=session.get('username')
     user2=request.form.get('user_id')
-    if not user1 or not user2:
-        return "존재하지 않는 사용자이거나 접속 중이 아닙니다.", 400
+
 
     # 방 이름을 알파벳순으로 고정해 충돌 방지
     room_users = sorted([user1, user2])
     room_name = f"{room_users[0]}_{room_users[1]}"
-
+    if room_name not in chat_room:
+        chat_room[room_name] = {
+        "user_id": room_users,
+        "room_name": room_name
+        }
     # 해당 1:1 채팅방으로 리디렉션
     return redirect(url_for('private_chat', room_name=room_name))
 
 @app.route('/chat/<room_name>')
 def private_chat(room_name):
-    if 'user_id' not in session:
+    user=session.get('username')
+    if not user:
         return redirect(url_for('login'))
-
+    #로그인되어 있지 않으면 로그인창으로 보내기
+    if user not in room_name:
+        return redirect(url_for('index'))
+    #채팅방 참여자가 아니라면 메인화면으로 돌려보내기
     return render_template('private_chat.html', room=room_name, username=session['username'])
-@socketio.on('message')
-def handle_message(msg):
-      
+@socketio.on('connect')
+def handle_connect():
+    if 'username' not in session:
+        return
+    username=session['username']
 
-    query=text("""INSERT INTO ACHAT(chat) VALUES(:chat)""")
+    
+    for room_name in chat_room:
+        if username in room_name:
+            join_room(room_name)
+@socketio.on('private_message')
+def handle_message(data):
+    # 클라이언트에서 {'room': room_name, 'message': msg} 형태로 보낸다고 가정
+    room_name = data.get('room')
+    msg = data.get('message')
+    username = session.get('username')
+
+    # 방과 사용자 유효성 검사
+    if not room_name or not msg or not username:
+        return
+    if room_name not in chat_room or username not in chat_room[room_name]['user_id']:
+        return
+
+    # DB에 메시지 저장
+    query = text("INSERT INTO CHAT(chat, room) VALUES (:chat, :room)")
     with database.connect() as conn:
-        conn.execute(query,{"chat":msg})
+        conn.execute(query, {"chat": msg, "room": room_name})
         conn.commit()
-    emit
+
+    # 해당 방에만 메시지 전송
+    send({
+        'message': msg,
+        'sender': username
+    }, to=room_name)        
+    
+
+
     
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)
