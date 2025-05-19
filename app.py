@@ -110,7 +110,7 @@ def sign_up():
     return render_template('register.html')
 
 @app.route('/openchat')        
-def chat():
+def open_chat():
     query=text("""SELECT chat FROM ACHAT ORDER BY num ASC""")
     with database.connect() as conn:
         result=conn.execute(query).fetchall()
@@ -133,23 +133,25 @@ def handle_message(msg):
 
 
 
-@app.route('/chat',methods=['POST'])
-def chat():
-    user1=session.get('username')
-    user2=request.form.get('user_id')
+@app.route('/chat',methods=['GET','POST'])
+def private_chat():
+    if request.method=='POST':
+        user1=session.get('username')
+        user2=request.form.get('user_id')
 
 
-    # 방 이름을 알파벳순으로 고정해 충돌 방지
-    room_users = sorted([user1, user2])
-    room_name = f"{room_users[0]}_{room_users[1]}"
-    if room_name not in chat_room:
-        chat_room[room_name] = {
-        "user_id": room_users,
-        "room_name": room_name
-        }
-    # 해당 1:1 채팅방으로 리디렉션
-    return redirect(url_for('private_chat', room_name=room_name))
-
+        # 방 이름을 알파벳순으로 고정해 충돌 방지
+        room_users = sorted([user1, user2])
+        room_name = f"{room_users[0]}_{room_users[1]}"
+        if room_name not in chat_room:
+            chat_room[room_name] = {
+            "user_id": room_users,
+            "room_name": room_name
+            }
+        # 해당 1:1 채팅방으로 리디렉션
+        return redirect(url_for('private_chat', room_name=room_name))
+    else:
+        return render_template('chat.html')
 @app.route('/chat/<room_name>')
 def private_chat(room_name):
     user=session.get('username')
