@@ -70,7 +70,7 @@
         function sendMessage() {
             const input = document.getElementById('message');
             const fullMessage = `익명: ${input.value}`;
-            socket.send(fullMessage);
+            socket.emit('open_message',fullMessage);
             input.value = '';
         }
 

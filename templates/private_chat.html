@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>1:1 채팅</title>
+    <style>
+        #chat {
+            border: 1px solid #ccc;
+            height: 300px;
+            overflow-y: auto;
+            padding: 10px;
+            background-color: #f9f9f9;
+        }
+        .chat-message {
+            margin: 5px 0;
+        }
+        #message {
+            width: 80%;
+            padding: 8px;
+        }
+        button {
+            padding: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>{{ room }}</h1>
+    <div id="chat">
+    {% for chat in chats %}
+    <div class="chat-message"><b>{{ chat.sender }}</b>: {{ chat.chat }}</div>
+    {% endfor %}
+    </div>
+    </ul>
+    <input id="message" onkeypress="enterPress(event)" autocomplete="off">
+    <button onclick="sendMessage()">전송</button>
+    
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <script>
+        const socket = io();
+        const roomName = {{ room | tojson }};
+        const sender = {{ username | tojson }};
+        socket.emit('join', roomName);
+
+        const chat = document.getElementById('chat');
+
+        socket.on('private_message', function(data) {
+            const newMessage = document.createElement('div');
+            newMessage.className = 'chat-message';
+            newMessage.textContent = data.sender + ": " + data.message;
+            chat.appendChild(newMessage);
+            scrollToBottom();
+        });
+
+        function sendMessage() {
+            const input = document.getElementById('message');
+            const message = input.value.trim();
+            if (message) {
+                socket.emit('private_message', {
+                room: roomName,
+                msg: message,
+                sender: sender 
+            });
+                input.value = '';
+            }
+        }
+
+        function enterPress(event) {
+            if (event.key === "Enter") {
+                sendMessage();
+            }
+        }
+
+        function scrollToBottom() {
+            const chat = document.getElementById('chat');
+            chat.scrollTop = chat.scrollHeight;
+        }
+
+        window.onload = scrollToBottom;
+    </script>
+</body>
+</html>
