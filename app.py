@@ -11,8 +11,6 @@ app.config.from_pyfile('config.py')
 socketio = SocketIO(app, manage_session=True)
 
 database=create_engine(app.config['DB_URL'],pool_pre_ping=True ,pool_recycle=3600,echo=True)
-connected_users = {}
-chat_room={}
 
 def encrypt_message(message, public_key):
     #메시지를 공개키로 암호화
@@ -164,10 +162,14 @@ def lobby():
 @app.route('/chat/<room_name>')
 def private_chat(room_name):
     query = text("SELECT sender, chat FROM CHAT WHERE room = :room")
+    # 해당 방의 채팅 기록을 가져오는 쿼리
     with database.connect() as conn:
+        
         result = conn.execute(query, {"room": room_name}).fetchall()
         chats = [{"sender": row[0], "chat": row[1]} for row in result]
+        # 데이터베이스에서 해당 방의 채팅기록을 가져와 chats 리스트에 저장
     user=session.get('username')
+    #로그인된 사용자 세션에서 username 가져오기
     if not user:
         return redirect(url_for('login'))
     #로그인되어 있지 않으면 로그인창으로 보내기
@@ -175,44 +177,41 @@ def private_chat(room_name):
         return redirect(url_for('index'))
     #채팅방 참여자가 아니라면 메인화면으로 돌려보내기
     return render_template('private_chat.html', room=room_name, username=session['username'], chats=chats)
+    # private_chat.html 템플릿을 렌더링하고, 방 이름과 사용자 이름, 채팅 기록을 전달
 
 @socketio.on('join')
 def join(room_name):
     username = session.get('username')
-    if not username:
-        print("join: 세션에 username 없음")
-        return
     print(f"{username}님이 {room_name} 방에 입장")
     if username in room_name:
         join_room(room_name)
+        # 방에 참여
 
 @socketio.on('private_message')
 def handle_message(data):
     print(f"[private_message] data received: {data}")
     room_name = data.get("room")
+    # 채팅방 이름
     msg = data.get("msg")
+    # 메시지 내용
     username = data.get("sender")
+    # 메시지를 보낸 사용자 이름
     print(f"room_name: {room_name}, msg: {msg}, username: {username}")
-    if not room_name or not msg or not username:
-        print("private_message: 필수 데이터 없음")
-        return
-    #if room_name not in chat_room or username not in chat_room[room_name]['user_id']:
-    #    print("private_message: 방 정보 불일치")
-    #    return
+    # 필수 데이터가 모두 있는지 확인
 
     query = text("INSERT INTO CHAT(chat, room, sender) VALUES (:chat, :room, :sender)")
+    # 채팅 메시지를 데이터베이스에 저장하는 쿼리
 
-    try:
-        with database.begin() as conn:
-            conn.execute(query, {"chat": msg, "room": room_name, "sender": username})
-        print("메시지 DB에 저장됨:")
-    except Exception as e:
-        print("DB 저장 중 오류 발생:", e)
+    with database.begin() as conn:
+        conn.execute(query, {"chat": msg, "room": room_name, "sender": username})
+        # 데이터베이스에 메시지 저장
+        
 
     emit('private_message', {
         'sender': username,
         'message': msg
     }, to=room_name)
+    # 해당 방에 있는 모든 클라이언트에게 메시지 전송
     
 
 
