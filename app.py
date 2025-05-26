@@ -1,6 +1,7 @@
 import socket
 import threading
 import pymysql
+import bcrypt
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import PKCS1_OAEP
 from flask import Flask,request,render_template,redirect,session,url_for
@@ -29,16 +30,16 @@ def make_key():
 
 def get_login(user_id):
     
-    #:id는 플레이스 홀더역할로 값을 넣을 자리를 표시하는 역할을 한단다 
-    # 이후.execute({"id":user_id})에서 user_id 	값을 전달하면 실행시,:id가 해당값으로 대체된다고함
+    #:id는 플레이스 홀더역할로 값을 넣을 자리를 표시하는 역할을 한다 
+    # 이후.execute({"id":user_id})에서 user_id 	값을 전달하면 실행시,:id가 해당값으로 대체된다
 
     with database.connect() as conn:
         query = text("SELECT id,passwd FROM PRIVATE WHERE id = :id") 
-        #:id는 플레이스 홀더역할로 값을 넣을 자리를 표시하는 역할을 한단다 
-        # 이후.execute({"id":user_id})에서 user_id 	값을 전달하면 실행시,:id가 해당값으로 대체된다고함
+        #:id는 플레이스 홀더역할로 값을 넣을 자리를 표시하는 역할을 한다 
+        # 이후.execute({"id":user_id})에서 user_id 	값을 전달하면 실행시,:id가 해당값으로 대체된다
         result = conn.execute(query, {"id": user_id}).fetchone()
 	#user_id="u001"로 입력했다 치면 실행시 :id가 "u001"로 대체된다
-	#SQLAlchemy가 '--같은것도 그냥 문자열로만 취급하기때문에 인젝션이 막힌다함
+	#SQLAlchemy가 '--같은것도 그냥 문자열로만 취급하기때문에 인젝션이 막힌다
     if result:
         return {"id":result[0],"passwd":result[1]}
     else:
@@ -65,8 +66,10 @@ def sign_in():
         user_id=request.form.get("user_id")
         password=request.form.get("password")
         userinfo=get_login(user_id)
+        encode_pw=password.encode("utf-8")
         if userinfo:
-            if userinfo["passwd"]==password:
+            encode_ckpw=userinfo["passwd"].encode("utf-8")
+            if bcrypt.checkpw(encode_pw,encode_ckpw):
                 session["username"]=user_id #변경할것
                 return redirect('/')
             else:
@@ -82,6 +85,9 @@ def sign_up():
         user_name=request.form.get("user_name")
         user_id=request.form.get("user_id")
         password=request.form.get("password")
+        b_password=bytes(password,"utf-8")
+        b_hashed_password=bcrypt.hashpw(password=b_password,salt=bcrypt.gensalt())
+
         duplication=get_duplication(user_id)
         if duplication:
             return "사용할 수 없는 아이디입니다."
@@ -97,7 +103,7 @@ def sign_up():
                 conn.commit()
             kquery=text("""INSERT INTO PRIVATE(id,passwd,pri_key) VALUES (:id,:passwd,:pri_key)""")
             with database.connect() as conn:
-                conn.execute(kquery,{"id":user_id,"passwd":password,"pri_key":pri_str})
+                conn.execute(kquery,{"id":user_id,"passwd":b_hashed_password,"pri_key":pri_str})
                 conn.commit()
 
             return "회원가입 성공" 
@@ -141,12 +147,6 @@ def lobby():
         # 방 이름을 알파벳순으로 고정해 충돌 방지
         room_users = sorted([user1, user2])
         room_name = f"{room_users[0]}_{room_users[1]}"
-        #if room_name not in chat_room:
-        #    chat_room[room_name] = {
-        #    "user_id": room_users,
-        #    "room_name": room_name
-        #    }
-        # 해당 1:1 채팅방으로 리디렉션
         return redirect(url_for('private_chat', room_name=room_name))
     else:
         query=text("""SELECT id FROM USERINFO""")
