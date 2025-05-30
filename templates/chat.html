@@ -1,0 +1,26 @@
+<html>
+<head>
+    <title>lobby</title>
+</head>
+<body>
+    <h3>Lobby</h3>
+    <h3>유저 리스트</h3>
+    
+        {% for user in users %}
+            {% if user != username %}
+                {% set sorted_name=[user,username]|sort %}
+                {% set room_name= sorted_name[0] ~ '_' ~ sorted_name[1] %}
+                <a href="/chat/{{room_name}}">{{ user }}</a><br>
+
+            {% endif %}
+        {% endfor %}
+
+
+
+
+
+</body>
+
+
+
+</html>
