@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
+    <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>1:1 채팅</title>
+    <title>1:1 채팅 (종단간 암호화)</title>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet">
+
     <style>
+        /* (생략) 기존 스타일 유지 */
         body {
             font-family: 'Noto Sans KR', sans-serif;
             background-color: #f3f4f6; 
@@ -20,24 +22,19 @@
             display: flex;
             flex-direction: column;
             width: 100%;
-            max-width: none; 
-            margin: 0;
             background-color: #fff; 
-            border-radius: 0; 
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); 
             overflow: hidden; 
-            border: none; 
         }
         .header {
             background-color: #4299e1;
             color: white;
             padding: 20px;
             text-align: center;
-            border-bottom: 1px solid #cbd5e0; 
-            font-weight: 700; 
+            font-weight: 700;
             font-size: 1.4rem;
+            border-bottom: 1px solid #cbd5e0;
         }
-        
         .chat {
             flex-grow: 1; 
             padding: 20px;
@@ -45,19 +42,18 @@
             display: flex;
             flex-direction: column; 
         }
-        
         .chat-message {
             margin-bottom: 15px;
             display: flex;
             flex-direction: column;
             align-items: flex-start;
         }
-        .chat-message .sender{
+        .chat-message .sender {
             font-size: 0.85rem;
             color: #718096; 
             margin-bottom: 5px;
         }
-        .chat-message .text{
+        .chat-message .text {
             background-color: #e2e8f0; 
             color: #2d3748;
             padding: 10px 15px;
@@ -71,18 +67,70 @@
         .chat-message.sent {
            align-items: flex-end;
         }
-        
         .chat-message.sent .text {
             background-color: #b6f0fb; 
             color: #2d3748;
         }
-
+        .input-area {
+            padding: 15px;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+        }
         #message {
-            width: 80%;
-            padding: 8px;
+            flex-grow: 1;
+            padding: 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            margin-right: 10px;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.3s ease;
+        }
+        #message:focus {
+            border-color: #4299e1;
+            box-shadow: 0 0 5px rgba(66, 153, 225, 0.3);
         }
         button {
-            padding: 8px;
+            background-color: #4299e1;
+            color: white;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: background-color 0.3s ease;
+        }
+        button:hover {
+            background-color: #3182ce;
+        }
+        button:active {
+            background-color: #235da1;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+        }
+        @media (max-width: 640px) {
+            .input-area {
+                padding: 10px;
+            }
+            #message {
+                font-size: 0.95rem;
+                padding: 10px;
+            }
+            button {
+                font-size: 0.95rem;
+                padding: 10px 16px;
+            }
+            .header {
+                font-size: 1.2rem;
+                padding: 15px;
+            }
+            .chat {
+                padding: 15px;
+            }
+            .chat-message .text {
+                font-size: 0.95rem;
+            }
         }
     </style>
 </head>
@@ -90,76 +138,250 @@
     <div class="container">
         <div class="header" id="roomHeader">{{ room }}</div>
         <div class="chat" id="chat">
-        {% for chat in chats %}
-            <div class="chat-message{% if chat.sender == username %} sent{% endif %}">
-            <div class="sender">{{ chat.sender }}</div>
-            <div class="text">{{ chat.chat }}</div>
+            <!-- 기존에 저장된 암호문을 복호화하여 렌더링하기 위해 데이터를 DATA-속성으로 숨겨둠 -->
+            {% for chat in chats %}
+                <div class="chat-message{% if chat.sender == username %} sent{% endif %}">
+                    <div class="sender">{{ chat.sender }}</div>
+                    <!-- 화면에 바로 평문을 표시하지 않고, 암호문과 aes_key를 data-속성에 넣어둠 -->
+                    <div class="text" 
+                         data-chat="{{ chat.chat }}" 
+                         data-aes-key="{{ chat.aes_key }}">
+                        <!-- 실제 평문은 JS가 복호화한 뒤 innerText로 쓸 것 -->
+                        <em>복호화 중...</em>
+                    </div>
+                </div>
+            {% endfor %}
         </div>
-        {% endfor %}
-        </div>
-        
-</div>
     </div>
-    </ul>
+
     <div class="input-area">
-        <input id="message" onkeypress="enterPress(event)" autocomplete="off">
+        <input id="message" type="text" autocomplete="off" placeholder="메시지를 입력하세요..." onkeypress="enterPress(event)" />
         <button onclick="sendMessage()" id="sendButton">전송</button>
     </div>
+
+    <!-- 1) Socket.IO -->
     <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <!-- 2) CryptoJS (AES 암호화를 위해) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <!-- 3) JSEncrypt (RSA 암호화를 위해) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsencrypt/3.0.0-beta.1/jsencrypt.min.js"></script>
+
     <script>
+        // ---------------------------------------------------------------------
+        // [템플릿 변수]
+        // ---------------------------------------------------------------------
         const socket = io();
         const roomName = {{ room | tojson }};
         const sender = {{ username | tojson }};
+        // 상대방의 공개키 (PEM 형식 문자열)
+        const recipientPubKey = {{ recipient_pub_key | tojson }};
+        // 나의 개인키 (PEM 형식 문자열)
+        const myPrivateKey = {{ my_private_key | tojson }};
+
+        // 방(roomName)에 접속
         socket.emit('join', roomName);
 
-        const chat = document.getElementById('chat');
-        
-        socket.on('private_message', function(data) {
-            const newMessage = document.createElement('div');
-            newMessage.className = 'chat-message';
-            if (data.sender === sender) {
-                newMessage.classList.add('sent');
-            }
-            const send=document.createElement('div');
-            send.classList.add('sender');
-            send.textContent = data.sender;
-            const message=document.createElement('div');
+        // 채팅 영역 요소
+        const chatContainer = document.getElementById('chat');
 
-            message.classList.add('text');
-            message.textContent = data.message;
-            newMessage.appendChild(send);
-            newMessage.appendChild(message);
+        // ---------------------------------------------------------------------
+        // 1) 페이지 로드시: 기존에 서버에서 렌더링된 암호문(chat, aes_key)을
+        //    JavaScript로 복호화하여 화면에 평문으로 표시
+        // ---------------------------------------------------------------------
+        window.addEventListener('DOMContentLoaded', () => {
+            // 1-1) JSEncrypt 객체 생성 (개인키 설정)
+            const decryptor = new JSEncrypt();
+            decryptor.setPrivateKey(myPrivateKey);
 
-            chat.appendChild(newMessage);
+            // 1-2) 모든 .text 요소를 순회하며 암호문 복호화 시도
+            document.querySelectorAll('.chat-message .text').forEach(textDiv => {
+                // data 속성에서 암호문(AES 부분)과 암호화된 AES 키(RSA 부분) 추출
+                const encryptedMsg = textDiv.getAttribute('data-chat');    // "ivHex:ciphertextBase64"
+                const encryptedKey = textDiv.getAttribute('data-aes-key'); // Base64(RSA-OAEP)
+
+                // 복호화 순서:
+                // (1) RSA 개인키로 encryptedKey 복호화 → AES 키(Base64 문자열)
+                // (2) AES 키(Base64 → WordArray) + encryptedMsg에서 IV, CipherText 분리 → AES 복호화 → 평문
+                if (encryptedMsg && encryptedKey) {
+                    try {
+                        // (1) RSA 개인키 복호화: AES 키(Base64)
+                        const aesKeyBase64 = decryptor.decrypt(encryptedKey);
+                        // WordArray 형태로 변환
+                        const aesKeyWords = CryptoJS.enc.Base64.parse(aesKeyBase64);
+
+                        // (2) IV, CipherText 분리
+                        const [ivHex, ctBase64] = encryptedMsg.split(':');
+                        const ivWords = CryptoJS.enc.Hex.parse(ivHex);
+                        const ctWords = CryptoJS.enc.Base64.parse(ctBase64);
+
+                        // (3) AES-256-CBC 복호화
+                        const decrypted = CryptoJS.AES.decrypt(
+                            { ciphertext: ctWords },
+                            aesKeyWords,
+                            { iv: ivWords }
+                        );
+                        const plaintext = decrypted.toString(CryptoJS.enc.Utf8) || "[복호화 실패]";
+
+                        // 화면에 평문으로 갱신
+                        textDiv.innerText = plaintext;
+                    } catch (err) {
+                        console.error("복호화 오류:", err);
+                        textDiv.innerText = "확인할 수 없는 메세지 입니다.";
+                    }
+                } else {
+                    textDiv.innerText = "[암호문 없음]";
+                }
+            });
+
             scrollToBottom();
-        
         });
 
-        function sendMessage() {
-            const input = document.getElementById('message');
-            const message = input.value.trim();
-            if (message) {
-                socket.emit('private_message', {
-                room: roomName,
-                msg: message,
-                sender: sender 
-            });
-                input.value = '';
+        // ---------------------------------------------------------------------
+        // 2) 서버로부터 새 메시지(암호문)를 받았을 때: 복호화 후 화면에 표시
+        // ---------------------------------------------------------------------
+        socket.on('private_message', function(data) {
+            if (data.sender === sender) {
+                return; // 자신이 보낸 메시지는 무시
             }
-        }
+            // data = { sender, encrypted_message, encrypted_key }
+            const newMessageDiv = document.createElement('div');
+            newMessageDiv.className = 'chat-message';
+            
 
+            // (1) 보낸 사람 표시
+            const senderDiv = document.createElement('div');
+            senderDiv.classList.add('sender');
+            senderDiv.textContent = data.sender;
+
+            // (2) 암호문을 저장할 <div class="text"> 생성
+            const textDiv = document.createElement('div');
+            textDiv.classList.add('text');
+            // 화면에 잠시 로딩 메시지
+            textDiv.innerText = "[복호화 중...]";
+            // data-속성에 암호문(AES)과 암호화된 키(RSA) 저장
+            textDiv.setAttribute('data-chat', data.encrypted_message);
+            textDiv.setAttribute('data-aes-key', data.encrypted_key);
+
+            newMessageDiv.appendChild(senderDiv);
+            newMessageDiv.appendChild(textDiv);
+            chatContainer.appendChild(newMessageDiv);
+
+            // (3) 즉시 복호화 시도
+            try {
+                // RSA 개인키 복호화
+                const decryptor = new JSEncrypt();
+                decryptor.setPrivateKey(myPrivateKey);
+                const aesKeyBase64 = decryptor.decrypt(data.encrypted_key);
+                const aesKeyWords = CryptoJS.enc.Base64.parse(aesKeyBase64);
+
+                // IV, CipherText 분리
+                const [ivHex, ctBase64] = data.encrypted_message.split(':');
+                const ivWords = CryptoJS.enc.Hex.parse(ivHex);
+                const ctWords = CryptoJS.enc.Base64.parse(ctBase64);
+
+                // AES 복호화
+                const decrypted = CryptoJS.AES.decrypt(
+                    { ciphertext: ctWords },
+                    aesKeyWords,
+                    { iv: ivWords }
+                );
+                const plaintext = decrypted.toString(CryptoJS.enc.Utf8) || "[복호화 실패]";
+
+                // 화면에 평문 반영
+                textDiv.innerText = plaintext;
+            } catch (err) {
+                console.error("메시지 복호화 오류:", err);
+                textDiv.innerText = "확인할 수 없는 메세지 입니다.";
+            }
+
+            scrollToBottom();
+        });
+
+        // ---------------------------------------------------------------------
+        // 3) sendMessage(): 평문 → AES 암호화 → AES 키 RSA 암호화 → 서버 전송
+        // ---------------------------------------------------------------------
+        function sendMessage() {
+    const input = document.getElementById('message');
+    const message = input.value.trim();
+    if (!message) return;
+
+    // 1) AES 키(256비트) 생성 (WordArray 형태)
+    const aesKey = CryptoJS.lib.WordArray.random(32); // 32바이트 = 256비트
+
+    // 2) IV(16바이트) 생성
+    const iv = CryptoJS.lib.WordArray.random(16);
+
+    // 3) AES-256-CBC 암호화 (평문 → 암호문)
+    const encrypted = CryptoJS.AES.encrypt(
+        message,
+        aesKey,
+        { iv: iv }
+    );
+    const ctBase64 = encrypted.ciphertext.toString(CryptoJS.enc.Base64);
+    const ivHex = iv.toString();
+
+    // 4) 암호문 형식 조합
+    const encryptedMsgString = ivHex + ':' + ctBase64;
+
+    // 5) AES 키를 Base64 문자열로 변환
+    const aesKeyBase64 = CryptoJS.enc.Base64.stringify(aesKey);
+
+    // 6) AES 키 RSA 암호화
+    const encryptor = new JSEncrypt();
+    encryptor.setPublicKey(recipientPubKey);
+    const encryptedAesKeyBase64 = encryptor.encrypt(aesKeyBase64);
+    if (!encryptedAesKeyBase64) {
+        console.error("RSA 암호화 실패");
+        return;
+    }
+
+    // 7) 서버로 암호문 전송
+    socket.emit('private_message', {
+        room: roomName,
+        sender: sender,
+        encrypted_message: encryptedMsgString,
+        encrypted_key: encryptedAesKeyBase64
+    });
+
+    // 8) 입력창 초기화
+    input.value = '';
+    
+    // 9) 채팅창에 평문 메시지 바로 추가 (보낸 사람: 나)
+    const newMessageDiv = document.createElement('div');
+    newMessageDiv.className = 'chat-message sent'; // 내 메시지니까 sent 클래스 추가
+
+    // 보낸 사람 이름
+    const senderDiv = document.createElement('div');
+    senderDiv.classList.add('sender');
+    senderDiv.textContent = sender;
+
+    // 평문 메시지 텍스트
+    const textDiv = document.createElement('div');
+    textDiv.classList.add('text');
+    textDiv.textContent = message;
+
+    // 새 메시지 div에 자식으로 추가
+    newMessageDiv.appendChild(senderDiv);
+    newMessageDiv.appendChild(textDiv);
+
+    // 채팅 영역에 추가
+    chatContainer.appendChild(newMessageDiv);
+
+    // 10) 스크롤 맨 아래로 이동
+    scrollToBottom();
+}
+
+        // Enter키로 전송
         function enterPress(event) {
             if (event.key === "Enter") {
                 sendMessage();
             }
         }
 
+        // 채팅창 스크롤 맨 아래로
         function scrollToBottom() {
-            const chat = document.getElementById('chat');
-            chat.scrollTop = chat.scrollHeight;
+            chatContainer.scrollTop = chatContainer.scrollHeight;
         }
-
-        window.onload = scrollToBottom;
     </script>
 </body>
 </html>

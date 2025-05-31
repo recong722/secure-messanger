@@ -58,23 +58,22 @@ def index():
     return render_template('index.html')
 
 
-@app.route('/login',methods=['GET','POST'])
+@app.route('/login', methods=['GET', 'POST'])
 def sign_in():
     if 'username' in session:
-     return redirect('/')
-    if request.method =='POST':
-        user_id=request.form.get("user_id")
-        password=request.form.get("password")
-        userinfo=get_login(user_id)
-        encode_pw=password.encode("utf-8")
+        return redirect('/')
+    if request.method == 'POST':
+        user_id = request.form.get("user_id")
+        password = request.form.get("password")
+        userinfo = get_login(user_id)
+        encode_pw = password.encode("utf-8")
         if userinfo:
-            encode_ckpw=userinfo["passwd"].encode("utf-8")
-            if bcrypt.checkpw(encode_pw,encode_ckpw):
-                session["username"]=user_id #변경할것
+            encode_ckpw = userinfo["passwd"]  # encode 제거
+            if bcrypt.checkpw(encode_pw, encode_ckpw):
+                session["username"] = user_id
                 return redirect('/')
             else:
                 return "아이디 혹은 비밀번호가 다릅니다."
-
         else:
             return "아이디 혹은 비밀번호가 다릅니다."
     return render_template('login.html')
@@ -161,23 +160,55 @@ def lobby():
         return render_template('chat.html',users=users,username=session['username'])  
 @app.route('/chat/<room_name>')
 def private_chat(room_name):
-    query = text("SELECT sender, chat FROM CHAT WHERE room = :room")
-    # 해당 방의 채팅 기록을 가져오는 쿼리
+    # 1) 방(room_name) 내부의 기존 암호문 (chat, aes_key)을 모두 가져옴
+    query = text("SELECT sender, chat, aes_key FROM CHAT WHERE room = :room ORDER BY id ASC")
     with database.connect() as conn:
-        
         result = conn.execute(query, {"room": room_name}).fetchall()
-        chats = [{"sender": row[0], "chat": row[1]} for row in result]
-        # 데이터베이스에서 해당 방의 채팅기록을 가져와 chats 리스트에 저장
-    user=session.get('username')
-    #로그인된 사용자 세션에서 username 가져오기
+        # chats 리스트에 기존에 저장된 암호문만 넣어둠 (sender, chat, aes_key)
+        chats = [
+            {"sender": row[0], "chat": row[1], "aes_key": row[2]}
+            for row in result
+        ]
+
+    user = session.get('username')
     if not user:
         return redirect(url_for('login'))
-    #로그인되어 있지 않으면 로그인창으로 보내기
+    # 사용자가 방에 속하지 않으면 접근 금지
     if user not in room_name:
         return redirect(url_for('index'))
-    #채팅방 참여자가 아니라면 메인화면으로 돌려보내기
-    return render_template('private_chat.html', room=room_name, username=session['username'], chats=chats)
-    # private_chat.html 템플릿을 렌더링하고, 방 이름과 사용자 이름, 채팅 기록을 전달
+
+    # 2) 방 이름(room_name)에서 나(me)와 상대방(other)을 분리
+    users = room_name.split("_")
+    if users[0] == user:
+        other_user = users[1]
+    else:
+        other_user = users[0]
+
+    # 3) 상대방의 공개키(pub_key) 조회
+    pub_query = text("SELECT pub_key FROM USERINFO WHERE id = :id")
+    with database.connect() as conn:
+        pub_result = conn.execute(pub_query, {"id": other_user}).fetchone()
+        if not pub_result:
+            return "상대방 공개키를 찾을 수 없습니다.", 500
+        recipient_pub_key = pub_result[0]  # TEXT 타입(Base64로 인코딩된 PEM 형식)
+
+    # 4) 내 개인키(pri_key) 조회
+    pri_query = text("SELECT pri_key FROM `PRIVATE` WHERE id = :id")
+    with database.connect() as conn:
+        pri_result = conn.execute(pri_query, {"id": user}).fetchone()
+        if not pri_result:
+            return "내 개인키를 찾을 수 없습니다.", 500
+        my_private_key = pri_result[0]  # TEXT 타입(Base64로 인코딩된 PEM 형식)
+
+    # 5) 템플릿에 chats, recipient_pub_key, my_private_key, room, username 변수 전달
+    return render_template(
+        'private_chat.html',
+        room=room_name,
+        username=user,
+        chats=chats,
+        recipient_pub_key=recipient_pub_key,
+        my_private_key=my_private_key
+    )
 
 @socketio.on('join')
 def join(room_name):
@@ -189,29 +220,42 @@ def join(room_name):
 
 @socketio.on('private_message')
 def handle_message(data):
+    """
+    클라이언트에서 전송된 데이터를 통해:
+     - encrypted_message: AES-256-CBC로 암호화된 메시지 문자열 (IV:CipherText 형태)
+     - encrypted_key: RSA로 암호화된 AES 대칭키(Base64 문자열)
+     - room: 방 이름
+     - sender: 보내는 사용자의 ID
+    """
     print(f"[private_message] data received: {data}")
     room_name = data.get("room")
-    # 채팅방 이름
-    msg = data.get("msg")
-    # 메시지 내용
+    encrypted_message = data.get("encrypted_message")  # 문자열, 예: HEX(IV) + ':' + Base64(ciphertext)
+    encrypted_key = data.get("encrypted_key")          # Base64 문자열 (RSA-OAEP 암호문)
     username = data.get("sender")
-    # 메시지를 보낸 사용자 이름
-    print(f"room_name: {room_name}, msg: {msg}, username: {username}")
-    # 필수 데이터가 모두 있는지 확인
 
-    query = text("INSERT INTO CHAT(chat, room, sender) VALUES (:chat, :room, :sender)")
-    # 채팅 메시지를 데이터베이스에 저장하는 쿼리
+    if not all([room_name, encrypted_message, encrypted_key, username]):
+        print("필수 데이터 누락")
+        return
 
+    # 1) DB에 암호화된 메시지와 암호화된 AES 키를 함께 저장
+    query = text("""
+        INSERT INTO CHAT(chat, aes_key, room, sender)
+        VALUES (:chat, :aes_key, :room, :sender)
+    """)
     with database.begin() as conn:
-        conn.execute(query, {"chat": msg, "room": room_name, "sender": username})
-        # 데이터베이스에 메시지 저장
-        
+        conn.execute(query, {
+            "chat": encrypted_message,
+            "aes_key": encrypted_key,
+            "room": room_name,
+            "sender": username
+        })
 
+    # 2) 방(room_name)에 속해 있는 모든 클라이언트에게 암호문 그대로 브로드캐스트
     emit('private_message', {
         'sender': username,
-        'message': msg
+        'encrypted_message': encrypted_message,
+        'encrypted_key': encrypted_key
     }, to=room_name)
-    # 해당 방에 있는 모든 클라이언트에게 메시지 전송
     
 
 
