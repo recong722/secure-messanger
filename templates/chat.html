@@ -1,26 +1,143 @@
-<html>
+<!DOCTYPE html>
+<html lang="ko">
 <head>
-    <title>lobby</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>채팅 로비</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #f3f4f6; 
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            margin: 0;
+            padding: 0;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            width: 90%; 
+            max-width: 600px;
+            background-color: #fff;
+            border-radius: 8px; 
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); 
+            overflow: hidden;
+            margin: 20px; 
+        }
+
+
+        .header {
+            background-color: #4299e1;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-bottom: 1px solid #cbd5e0;
+            font-weight: 700;
+            font-size: 1.6rem;
+        }
+
+
+        .main-content {
+            padding: 20px;
+            overflow-y: auto;
+            flex-grow: 1;
+        }
+
+        .main-content h3 {
+            color: #2d3748;
+            margin-top: 0;
+            margin-bottom: 20px;
+            font-size: 1.2rem;
+            text-align: center;
+        }
+
+
+        .user-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .user-list-item {
+            margin-bottom: 10px;
+        }
+
+        .user-link {
+            display: block;
+            padding: 12px 15px;
+            background-color: #e2e8f0;
+            color: #2d3748;
+            text-decoration: none;
+            border-radius: 6px;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            font-size: 1.1rem;
+            font-weight: 500;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+        }
+
+        .user-link:hover {
+            background-color: #cbd5e0;
+            transform: translateY(-2px);
+        }
+
+        .user-link:active {
+            background-color: #a0aec0;
+            transform: translateY(0);
+            box-shadow: 0 0 1px rgba(0, 0, 0, 0.1);
+        }
+
+
+        @media (max-width: 640px) {
+            .container {
+                width: 95%;
+                margin: 10px;
+            }
+
+            .header {
+                font-size: 1.4rem;
+                padding: 15px;
+            }
+
+            .main-content {
+                padding: 15px;
+            }
+
+            .main-content h3 {
+                font-size: 1.1rem;
+            }
+
+            .user-link {
+                padding: 10px 12px;
+                font-size: 1rem;
+            }
+        }
+    </style>
 </head>
 <body>
-    <h3>Lobby</h3>
-    <h3>유저 리스트</h3>
-    
-        {% for user in users %}
-            {% if user != username %}
-                {% set sorted_name=[user,username]|sort %}
-                {% set room_name= sorted_name[0] ~ '_' ~ sorted_name[1] %}
-                <a href="/chat/{{room_name}}">{{ user }}</a><br>
+    <div class="container">
+        <div class="header">
+            채팅 로비
+        </div>
 
-            {% endif %}
-        {% endfor %}
-
-
-
-
-
+        <div class="main-content">
+            <h3>유저 리스트</h3>
+            <ul class="user-list">
+                {% for user in users %}
+                    {% if user != username %}
+                        {% set sorted_name=[user,username]|sort %}
+                        {% set room_name= sorted_name[0] ~ '_' ~ sorted_name[1] %}
+                        <li class="user-list-item">
+                            <a href="/chat/{{room_name}}" class="user-link">{{ user }}</a>
+                        </li>
+                    {% endif %}
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
 </body>
-
-
-
 </html>
