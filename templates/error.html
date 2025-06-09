@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>
+        에러 발생!
+    </title>
+    <script>
+        window.onload= function(){
+            {% if alert_msg %}
+            alert("{{alert_msg}}");
+            window.location.href="/login";
+            {% endif %}
+
+        };
+        
+
+
+
+    </script>
+
+</head>
+<body>
+
+</body>
+
+
+
+
+
+
+
+
+
+
+</html>
