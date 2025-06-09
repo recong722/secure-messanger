@@ -78,6 +78,11 @@ def sign_in():
             return "아이디 혹은 비밀번호가 다릅니다."
     return render_template('login.html')
 
+@app.route('/logout')
+def logout():
+    session.pop('username', None)
+    return redirect('/')
+
 @app.route('/register',methods=['GET','POST'])
 def sign_up():
     if request.method == 'POST':
@@ -139,6 +144,7 @@ def handle_message(msg):
 @app.route('/chat',methods=['GET','POST'])
 def lobby():
     if request.method=='POST':
+
         user1=session.get('username')
         user2=request.form.get('user_id')
 
@@ -156,11 +162,15 @@ def lobby():
             for row in result:
                 users.append(row[0])
         #가입된 사용자 목록을 users 리스트에 저장
-                
-        return render_template('chat.html',users=users,username=session['username'])  
+
+    uname = session.get('username')
+    if not uname:
+        return render_template('error.html', alert_msg="로그인이 필요합니다")
+    return render_template('chat.html',users=users,username=session['username'])
+
 @app.route('/chat/<room_name>')
 def private_chat(room_name):
-    # 1) 방(room_name) 내부의 기존 암호문 (chat, aes_key)을 모두 가져옴
+    #  방(room_name) 내부의 기존 암호문 (chat, aes_key)을 모두 가져옴
     query = text("SELECT sender, chat, aes_key FROM CHAT WHERE room = :room ORDER BY id ASC")
     with database.connect() as conn:
         result = conn.execute(query, {"room": room_name}).fetchall()
