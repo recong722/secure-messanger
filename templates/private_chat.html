@@ -3,11 +3,10 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>1:1 채팅 (종단간 암호화)</title>
+    <title>1:1 채팅</title>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet">
 
     <style>
-        /* (생략) 기존 스타일 유지 */
         body {
             font-family: 'Noto Sans KR', sans-serif;
             background-color: #f3f4f6; 
@@ -34,6 +33,20 @@
             font-weight: 700;
             font-size: 1.4rem;
             border-bottom: 1px solid #cbd5e0;
+            position: relative;
+        }
+        .header .home-button {
+            position: absolute;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            background-color: #2d3748;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.95rem;
         }
         .chat {
             flex-grow: 1; 
@@ -136,7 +149,9 @@
 </head>
 <body>
     <div class="container">
-        <div class="header" id="roomHeader">{{ room }}</div>
+        <div class="header"><span>{{ room }}</span>
+            <button onclick="location.href='/'" class="home-button">홈으로</button>
+        </div>
         <div class="chat" id="chat">
             <!-- 기존에 저장된 암호문을 복호화하여 렌더링하기 위해 데이터를 DATA-속성으로 숨겨둠 -->
             {% for chat in chats %}

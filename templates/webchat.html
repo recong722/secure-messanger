@@ -30,6 +30,20 @@
             font-weight: 700;
             font-size: 1.4rem;
             border-bottom: 1px solid #cbd5e0;
+            position: relative;
+        }
+        .header .home-button {
+            position: absolute;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            background-color: #2d3748;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.95rem;
         }
         .main-chat {
             flex-grow: 1;
@@ -114,7 +128,10 @@
 </head>
 <body>
     <div class="container">
-        <div class="header">채팅방</div>
+            <div class="header">
+            <span>채팅 로비</span>
+            <button onclick="location.href='/'" class="home-button">홈으로</button>
+            </div>
         <div class="main-chat" id="chat">
             <div class="chat-message" id="welcome">누군가가 입장하셨습니다.</div>
             <div id="messages">
