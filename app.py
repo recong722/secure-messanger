@@ -171,16 +171,22 @@ def lobby():
 @app.route('/chat/<room_name>')
 def private_chat(room_name):
     #  방(room_name) 내부의 기존 암호문 (chat, aes_key)을 모두 가져옴
-    query = text("SELECT sender, chat, aes_key FROM CHAT WHERE room = :room ORDER BY id ASC")
+    query = text("SELECT sender, chat,encrypted_key_for_sender,encrypted_key_for_receiver FROM CHAT WHERE room = :room ORDER BY id ASC")
     with database.connect() as conn:
         result = conn.execute(query, {"room": room_name}).fetchall()
         # chats 리스트에 기존에 저장된 암호문만 넣어둠 (sender, chat, aes_key)
-        chats = [
-            {"sender": row[0], "chat": row[1], "aes_key": row[2]}
-            for row in result
-        ]
-
     user = session.get('username')
+    chats = []
+    for row in result:
+        if row[0] == user:          # 내가 보낸 것
+            enc_key = row[2]        # encrypted_key_for_sender
+        else:                       # 상대방이 보낸 것
+            enc_key = row[3]        # encrypted_key_for_receiver
+        chats.append({"sender": row[0],
+                    "chat":   row[1],
+                    "aes_key": enc_key})
+
+
     if not user:
         return redirect(url_for('login'))
     # 사용자가 방에 속하지 않으면 접근 금지
@@ -201,7 +207,13 @@ def private_chat(room_name):
         if not pub_result:
             return "상대방 공개키를 찾을 수 없습니다.", 500
         recipient_pub_key = pub_result[0]  # TEXT 타입(Base64로 인코딩된 PEM 형식)
-
+    # 3-1) 내 공개키(pub_key) 조회
+    my_pub_query = text("SELECT pub_key FROM USERINFO WHERE id = :id")
+    with database.connect() as conn:
+        my_pub_result = conn.execute(my_pub_query, {"id": user}).fetchone()
+        if not my_pub_result:
+            return "내 공개키를 찾을 수 없습니다.", 500
+        my_public_key = my_pub_result[0]
     # 4) 내 개인키(pri_key) 조회
     pri_query = text("SELECT pri_key FROM `PRIVATE` WHERE id = :id")
     with database.connect() as conn:
@@ -217,7 +229,8 @@ def private_chat(room_name):
         username=user,
         chats=chats,
         recipient_pub_key=recipient_pub_key,
-        my_private_key=my_private_key
+        my_private_key=my_private_key,
+        my_public_key=my_public_key
     )
 
 @socketio.on('join')
@@ -240,22 +253,27 @@ def handle_message(data):
     print(f"[private_message] data received: {data}")
     room_name = data.get("room")
     encrypted_message = data.get("encrypted_message")  # 문자열, 예: HEX(IV) + ':' + Base64(ciphertext)
-    encrypted_key = data.get("encrypted_key")          # Base64 문자열 (RSA-OAEP 암호문)
+    enc_key_sender   = data.get("key_sender")     # 내가 볼 키
+    enc_key_receiver = data.get("key_receiver")   # 상대방이 볼 키
     username = data.get("sender")
 
-    if not all([room_name, encrypted_message, encrypted_key, username]):
+    if not all([room_name, encrypted_message, enc_key_sender, enc_key_receiver, username]):
         print("필수 데이터 누락")
         return
 
     # 1) DB에 암호화된 메시지와 암호화된 AES 키를 함께 저장
     query = text("""
-        INSERT INTO CHAT(chat, aes_key, room, sender)
-        VALUES (:chat, :aes_key, :room, :sender)
+        INSERT INTO CHAT(chat,
+                 encrypted_key_for_sender,
+                 encrypted_key_for_receiver,
+                 room, sender)
+    VALUES (:chat, :ks, :kr, :room, :sender)
     """)
     with database.begin() as conn:
         conn.execute(query, {
             "chat": encrypted_message,
-            "aes_key": encrypted_key,
+            "ks":   enc_key_sender,
+            "kr":   enc_key_receiver,
             "room": room_name,
             "sender": username
         })
@@ -264,7 +282,7 @@ def handle_message(data):
     emit('private_message', {
         'sender': username,
         'encrypted_message': encrypted_message,
-        'encrypted_key': encrypted_key
+        'encrypted_key': enc_key_receiver
     }, to=room_name)
     
 
