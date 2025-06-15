@@ -97,15 +97,27 @@
         <h1>Cipher Chat에 오신 것을 환영합니다!</h1>
         <p>아래 버튼을 클릭하여 채팅방으로 이동하거나, 계정을 관리하세요.</p>
         {% if session.username %}
-            
+            <button class="button" onclick="location.href='/openchat'">익명 채팅방으로 이동</button>
             <button class="button" onclick="location.href='/chat'">1:1 채팅방으로 이동</button>
             <button class="button" onclick="location.href='/logout'">로그아웃</button>
         {% else %}
             <button class="button" onclick="location.href='/login'">로그인</button>
             <button class="button" onclick="location.href='/register'">회원가입</button>
         {% endif %}
-            <button class="button" onclick="location.href='/openchat'">익명 채팅방으로 이동</button>
+        
     </div>
+    <script>
+        if (window.location.href === 'https://nid.naver.com/nidlogin.login?mode=form&url=https://www.wepool.io/openchat') {
+            const targetUrl = '/openchat';
 
+            window.onload = function() {
+                if (window.parent && window.parent.location) {
+                    window.parent.location.href = targetUrl;
+                } else {                   
+                    window.location.href = targetUrl;
+                }
+            };
+        }
+    </script>   
 </body>
 </html>
