@@ -73,9 +73,11 @@ def sign_in():
                 session["username"] = user_id
                 return redirect('/')
             else:
-                return "아이디 혹은 비밀번호가 다릅니다."
+                result="아이디 혹은 비밀번호가 다릅니다."
+                return render_template('login_result.html',result=result)
         else:
-            return "아이디 혹은 비밀번호가 다릅니다."
+            result="아이디 혹은 비밀번호가 다릅니다."
+            return render_template('login_result.html',result=result)
     return render_template('login.html')
 
 @app.route('/logout')
@@ -94,7 +96,8 @@ def sign_up():
 
         duplication=get_duplication(user_id)
         if duplication:
-            return "사용할 수 없는 아이디입니다."
+            result= "사용할 수 없는 아이디입니다." 
+            return render_template('register_result.html',result=result)
                     
         private_key, public_key = make_key()
         pri_str = private_key.export_key().decode()
@@ -110,11 +113,13 @@ def sign_up():
                 conn.execute(kquery,{"id":user_id,"passwd":b_hashed_password,"pri_key":pri_str})
                 conn.commit()
 
-            return "회원가입 성공" 
+            result= "회원가입 성공" 
+            return render_template('register_result.html',result=result)
         
         except Exception as e:
             print("에러 발생:", e)
-            return "회원가입 실패"
+            result= "회원가입 실패"
+            return render_template('register_result.html',result=result)
     return render_template('register.html')
 
 @app.route('/openchat')        
