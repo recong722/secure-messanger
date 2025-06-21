@@ -13,15 +13,6 @@ socketio = SocketIO(app, manage_session=True)
 
 database=create_engine(app.config['DB_URL'],pool_pre_ping=True ,pool_recycle=3600,echo=True)
 
-def encrypt_message(message, public_key):
-    #메시지를 공개키로 암호화
-    cipher = PKCS1_OAEP.new(public_key)
-    return cipher.encrypt(message.encode())
-
-def decrypt_message(encrypted_message, private_key):
-    #암호화된 메시지를 개인키로 복호화
-    cipher = PKCS1_OAEP.new(private_key)
-    return cipher.decrypt(encrypted_message).decode()
 def make_key():
     #RSA 공개키 및 개인키 생성
     pr_key = RSA.generate(1024)
@@ -68,7 +59,7 @@ def sign_in():
         userinfo = get_login(user_id)
         encode_pw = password.encode("utf-8")
         if userinfo:
-            encode_ckpw = userinfo["passwd"]  # encode 제거
+            encode_ckpw = userinfo["passwd"]
             if bcrypt.checkpw(encode_pw, encode_ckpw):
                 session["username"] = user_id
                 return redirect('/')
@@ -134,7 +125,6 @@ def open_chat():
 def handle_message(msg):
       
     #user_ip=request.remote_addr
-    #print(f"[{user_ip}] 메세지 수신:{msg}")
     query=text("""INSERT INTO ACHAT(chat) VALUES(:chat)""")
     with database.connect() as conn:
         conn.execute(query,{"chat":msg})
@@ -198,28 +188,28 @@ def private_chat(room_name):
     if user not in room_name:
         return redirect(url_for('index'))
 
-    # 2) 방 이름(room_name)에서 나(me)와 상대방(other)을 분리
+    #방 이름(room_name)에서 나(me)와 상대방(other)을 분리
     users = room_name.split("_")
     if users[0] == user:
         other_user = users[1]
     else:
         other_user = users[0]
 
-    # 3) 상대방의 공개키(pub_key) 조회
+    #상대방의 공개키(pub_key) 조회
     pub_query = text("SELECT pub_key FROM USERINFO WHERE id = :id")
     with database.connect() as conn:
         pub_result = conn.execute(pub_query, {"id": other_user}).fetchone()
         if not pub_result:
             return "상대방 공개키를 찾을 수 없습니다.", 500
         recipient_pub_key = pub_result[0]  # TEXT 타입(Base64로 인코딩된 PEM 형식)
-    # 3-1) 내 공개키(pub_key) 조회
+    #내 공개키(pub_key) 조회
     my_pub_query = text("SELECT pub_key FROM USERINFO WHERE id = :id")
     with database.connect() as conn:
         my_pub_result = conn.execute(my_pub_query, {"id": user}).fetchone()
         if not my_pub_result:
             return "내 공개키를 찾을 수 없습니다.", 500
         my_public_key = my_pub_result[0]
-    # 4) 내 개인키(pri_key) 조회
+    #내 개인키(pri_key) 조회
     pri_query = text("SELECT pri_key FROM `PRIVATE` WHERE id = :id")
     with database.connect() as conn:
         pri_result = conn.execute(pri_query, {"id": user}).fetchone()
@@ -227,7 +217,7 @@ def private_chat(room_name):
             return "내 개인키를 찾을 수 없습니다.", 500
         my_private_key = pri_result[0]  # TEXT 타입(Base64로 인코딩된 PEM 형식)
 
-    # 5) 템플릿에 chats, recipient_pub_key, my_private_key, room, username 변수 전달
+    #템플릿에 chats, recipient_pub_key, my_private_key, room, username 변수 전달
     return render_template(
         'private_chat.html',
         room=room_name,
@@ -241,7 +231,6 @@ def private_chat(room_name):
 @socketio.on('join')
 def join(room_name):
     username = session.get('username')
-    print(f"{username}님이 {room_name} 방에 입장")
     if username in room_name:
         join_room(room_name)
         # 방에 참여
@@ -255,7 +244,6 @@ def handle_message(data):
      - room: 방 이름
      - sender: 보내는 사용자의 ID
     """
-    print(f"[private_message] data received: {data}")
     room_name = data.get("room")
     encrypted_message = data.get("encrypted_message")  # 문자열, 예: HEX(IV) + ':' + Base64(ciphertext)
     enc_key_sender   = data.get("key_sender")     # 내가 볼 키
@@ -266,7 +254,7 @@ def handle_message(data):
         print("필수 데이터 누락")
         return
 
-    # 1) DB에 암호화된 메시지와 암호화된 AES 키를 함께 저장
+    # DB에 암호화된 메시지와 암호화된 AES 키를 함께 저장
     query = text("""
         INSERT INTO CHAT(chat,
                  encrypted_key_for_sender,
@@ -283,7 +271,7 @@ def handle_message(data):
             "sender": username
         })
 
-    # 2) 방(room_name)에 속해 있는 모든 클라이언트에게 암호문 그대로 브로드캐스트
+    #방(room_name)에 속해 있는 모든 클라이언트에게 암호문 그대로 브로드캐스트
     emit('private_message', {
         'sender': username,
         'encrypted_message': encrypted_message,

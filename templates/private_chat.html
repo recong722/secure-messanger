@@ -174,17 +174,15 @@
         <button onclick="sendMessage()" id="sendButton">전송</button>
     </div>
 
-    <!-- 1) Socket.IO -->
+    <!-- Socket.IO -->
     <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
-    <!-- 2) CryptoJS (AES 암호화를 위해) -->
+    <!-- CryptoJS (AES 암호화를 위해) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
-    <!-- 3) JSEncrypt (RSA 암호화를 위해) -->
+    <!-- JSEncrypt (RSA 암호화를 위해) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsencrypt/3.0.0-beta.1/jsencrypt.min.js"></script>
 
     <script>
-        // ---------------------------------------------------------------------
-        // [템플릿 변수]
-        // ---------------------------------------------------------------------
+        // 템플릿 변수
         const socket = io();
         const roomName = {{ room | tojson }};
         const sender = {{ username | tojson }};
@@ -200,37 +198,35 @@
         // 채팅 영역 요소
         const chatContainer = document.getElementById('chat');
 
-        // ---------------------------------------------------------------------
-        // 1) 페이지 로드시: 기존에 서버에서 렌더링된 암호문(chat, aes_key)을
+        //  페이지 로드시: 기존에 서버에서 렌더링된 암호문(chat, aes_key)을
         //    JavaScript로 복호화하여 화면에 평문으로 표시
-        // ---------------------------------------------------------------------
         window.addEventListener('DOMContentLoaded', () => {
-            // 1-1) JSEncrypt 객체 생성 (개인키 설정)
+            // JSEncrypt 객체 생성 (개인키 설정)
             const decryptor = new JSEncrypt();
             decryptor.setPrivateKey(myPrivateKey);
 
-            // 1-2) 모든 .text 요소를 순회하며 암호문 복호화 시도
+            // 모든 .text 요소를 순회하며 암호문 복호화 시도
             document.querySelectorAll('.chat-message .text').forEach(textDiv => {
                 // data 속성에서 암호문(AES 부분)과 암호화된 AES 키(RSA 부분) 추출
                 const encryptedMsg = textDiv.getAttribute('data-chat');    // "ivHex:ciphertextBase64"
                 const encryptedKey = textDiv.getAttribute('data-aes-key'); // Base64(RSA-OAEP)
 
                 // 복호화 순서:
-                // (1) RSA 개인키로 encryptedKey 복호화 → AES 키(Base64 문자열)
-                // (2) AES 키(Base64 → WordArray) + encryptedMsg에서 IV, CipherText 분리 → AES 복호화 → 평문
+                //  RSA 개인키로 encryptedKey 복호화 → AES 키(Base64 문자열)
+                //  AES 키(Base64 → WordArray) + encryptedMsg에서 IV, CipherText 분리 → AES 복호화 → 평문
                 if (encryptedMsg && encryptedKey) {
                     try {
-                        // (1) RSA 개인키 복호화: AES 키(Base64)
+                        // RSA 개인키 복호화: AES 키(Base64)
                         const aesKeyBase64 = decryptor.decrypt(encryptedKey);
                         // WordArray 형태로 변환
                         const aesKeyWords = CryptoJS.enc.Base64.parse(aesKeyBase64);
 
-                        // (2) IV, CipherText 분리
+                        //  IV, CipherText 분리
                         const [ivHex, ctBase64] = encryptedMsg.split(':');
                         const ivWords = CryptoJS.enc.Hex.parse(ivHex);
                         const ctWords = CryptoJS.enc.Base64.parse(ctBase64);
 
-                        // (3) AES-256-CBC 복호화
+                        //  AES-256-CBC 복호화
                         const decrypted = CryptoJS.AES.decrypt(
                             { ciphertext: ctWords },
                             aesKeyWords,
@@ -252,9 +248,7 @@
             scrollToBottom();
         });
 
-        // ---------------------------------------------------------------------
-        // 2) 서버로부터 새 메시지(암호문)를 받았을 때: 복호화 후 화면에 표시
-        // ---------------------------------------------------------------------
+        //  서버로부터 새 메시지(암호문)를 받았을 때: 복호화 후 화면에 표시
         socket.on('private_message', function(data) {
             if (data.sender === sender) {
                 return; // 자신이 보낸 메시지는 무시
@@ -264,16 +258,16 @@
             newMessageDiv.className = 'chat-message';
             
 
-            // (1) 보낸 사람 표시
+            // 보낸 사람 표시
             const senderDiv = document.createElement('div');
             senderDiv.classList.add('sender');
             senderDiv.textContent = data.sender;
 
-            // (2) 암호문을 저장할 <div class="text"> 생성
+            // 암호문을 저장할 <div class="text"> 생성
             const textDiv = document.createElement('div');
             textDiv.classList.add('text');
             // 화면에 잠시 로딩 메시지
-            textDiv.innerText = "[복호화 중...]";
+            textDiv.innerText = "복호화 중...";
             // data-속성에 암호문(AES)과 암호화된 키(RSA) 저장
             textDiv.setAttribute('data-chat', data.encrypted_message);
             textDiv.setAttribute('data-aes-key', data.encrypted_key);
@@ -282,7 +276,7 @@
             newMessageDiv.appendChild(textDiv);
             chatContainer.appendChild(newMessageDiv);
 
-            // (3) 즉시 복호화 시도
+            // 복호화 시도
             try {
                 // RSA 개인키 복호화
                 const decryptor = new JSEncrypt();
@@ -313,21 +307,19 @@
             scrollToBottom();
         });
 
-        // ---------------------------------------------------------------------
-        // 3) sendMessage(): 평문 → AES 암호화 → AES 키 RSA 암호화 → 서버 전송
-        // ---------------------------------------------------------------------
+        // sendMessage(): 평문 → AES 암호화 → AES 키 RSA 암호화 → 서버 전송
         function sendMessage() {
     const input = document.getElementById('message');
     const message = input.value.trim();
     if (!message) return;
 
-    // 1) AES 키(256비트) 생성 (WordArray 형태)
+    // AES 키(256비트) 생성 (WordArray 형태)
     const aesKey = CryptoJS.lib.WordArray.random(32); // 32바이트 = 256비트
 
-    // 2) IV(16바이트) 생성
+    // IV(16바이트) 생성
     const iv = CryptoJS.lib.WordArray.random(16);
 
-    // 3) AES-256-CBC 암호화 (평문 → 암호문)
+    // AES-256-CBC 암호화 (평문 → 암호문)
     const encrypted = CryptoJS.AES.encrypt(
         message,
         aesKey,
@@ -336,13 +328,13 @@
     const ctBase64 = encrypted.ciphertext.toString(CryptoJS.enc.Base64);
     const ivHex = iv.toString();
 
-    // 4) 암호문 형식 조합
+    // 암호문 형식 조합
     const encryptedMsgString = ivHex + ':' + ctBase64;
 
-    // 5) AES 키를 Base64 문자열로 변환
+    // AES 키를 Base64 문자열로 변환
     const aesKeyBase64 = CryptoJS.enc.Base64.stringify(aesKey);
 
-    // 6) AES 키 RSA 암호화
+    // AES 키 RSA 암호화
     const encryptor = new JSEncrypt();
     encryptor.setPublicKey(recipientPubKey);
     const encKeyForPeer = encryptor.encrypt(aesKeyBase64);
@@ -350,7 +342,7 @@
     myEncryptor.setPublicKey(myPubKey);          // 템플릿에 넣어둘 것
     const encKeyForMe = myEncryptor.encrypt(aesKeyBase64);
 
-    // 7) 서버로 암호문 전송
+    // 서버로 암호문 전송
     socket.emit('private_message', {
         room: roomName,
         sender: sender,
@@ -359,10 +351,10 @@
         key_receiver: encKeyForPeer     // ← 변경
     });
 
-    // 8) 입력창 초기화
+    // 입력창 초기화
     input.value = '';
     
-    // 9) 채팅창에 평문 메시지 바로 추가 (보낸 사람: 나)
+    // 채팅창에 평문 메시지 바로 추가 (보낸 사람: 나)
     const newMessageDiv = document.createElement('div');
     newMessageDiv.className = 'chat-message sent'; // 내 메시지니까 sent 클래스 추가
 
@@ -383,7 +375,7 @@
     // 채팅 영역에 추가
     chatContainer.appendChild(newMessageDiv);
 
-    // 10) 스크롤 맨 아래로 이동
+    // 스크롤 맨 아래로 이동
     scrollToBottom();
 }
 

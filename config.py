@@ -15,7 +15,7 @@ dbs = {
 
 DB_URL = f"mysql+pymysql://{dbs['user']}:{dbs['password']}@{dbs['host']}:{dbs['port']}/{dbs['database']}?charset=utf8mb4"
 #SQLAlchemy에서 MySQL에 연결할 때 사용되는 URL을 생성
-SECRET_KEY = '승범이 형 바보'
+SECRET_KEY = 'CipherCiphertahc'
 #비밀키
 
 

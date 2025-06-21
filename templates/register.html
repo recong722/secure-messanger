@@ -125,11 +125,12 @@
     </div>
 
     <script>
+        // 비밀번호 일치 여부 확인 스크립트
         const passwordInput = document.getElementById('password');
         const confirmPasswordInput = document.getElementById('confirm_password');
         const passwordMismatchError = document.getElementById('password_mismatch');
         const submitButton = document.querySelector('button[type="submit"]');
-
+        //비밀번호 일치 여부 확인 함수
         function validatePassword() {
             if (passwordInput.value !== confirmPasswordInput.value) {
                 passwordMismatchError.style.display = 'block';
@@ -139,7 +140,9 @@
                 submitButton.disabled = false;
             }
         }
+        // 이벤트 리스너 추가
         confirmPasswordInput.addEventListener('input', validatePassword);
+        // 초기 비밀번호 입력 시에도 확인
         passwordInput.addEventListener('input', validatePassword);
     </script>
 </body>
