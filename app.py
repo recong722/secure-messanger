@@ -280,10 +280,21 @@ def handle_message(data):
     
 
 
-    
 if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=5000, debug=True)
-
-
-#if __name__ == '__main__':
-#    app.run(debug=True)
+ 
+  import ssl
+ 
+  context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+ 
+  context.load_cert_chain('/home/fecong/cert.pem', '/home/fecong/key.pem')
+ 
+ 
+ 
+  listener = eventlet.listen(('0.0.0.0', 5000))
+   
+  wrapped_socket = context.wrap_socket(listener, server_side=True)
+ 
+ 
+ 
+  eventlet.wsgi.server(wrapped_socket, app)
+ 
